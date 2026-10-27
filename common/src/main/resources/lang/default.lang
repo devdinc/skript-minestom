@@ -2365,6 +2365,9 @@ types:
 	timespan: time span¦s @a
 	timeperiod: time period¦s @a
 	date: date¦s @a
+	script: script¦s @a
+	executable: executable¦s @an
+	function: function¦s @a
 	direction: direction¦s @a
 	slot: slot¦s @a
 	color: color¦s @a

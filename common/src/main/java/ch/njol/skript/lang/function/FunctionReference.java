@@ -35,6 +35,7 @@ import ch.njol.util.StringUtils;
 import org.bukkit.event.Event;
 import org.eclipse.jdt.annotation.Nullable;
 import org.skriptlang.skript.lang.converter.Converters;
+import org.skriptlang.skript.util.Executable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,7 +46,7 @@ import java.util.stream.Collectors;
 /**
  * Reference to a Skript function.
  */
-public class FunctionReference<T> implements Contract {
+public class FunctionReference<T> implements Contract, Executable<Event, T[]> {
 
 	private static final String AMBIGUOUS_ERROR =
 		"Skript cannot determine which function named '%s' to call. " +
@@ -411,6 +412,40 @@ public class FunctionReference<T> implements Contract {
 		
 		// Execute the function
 		return function.execute(params);
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	@Nullable
+	public T[] execute(Event event, Object... arguments) {
+		if (function == null)
+			function = (Function<? extends T>) getRegisteredFunction();
+		if (function == null) { // It might be impossible to resolve functions in some cases!
+			Skript.error("Couldn't resolve call for '" + functionName + "'.");
+			return null; // Return nothing and hope it works
+		}
+		Object[][] consigned = consign(arguments);
+		try {
+			return function.execute(consigned);
+		} finally {
+			this.resetReturnValue();
+		}
+	}
+
+	/**
+	 * Wraps each argument in an array (if it isn't one already), since functions
+	 * expect one array of values per parameter.
+	 */
+	static Object[][] consign(Object... arguments) {
+		Object[][] consigned = new Object[arguments.length][];
+		for (int i = 0; i < consigned.length; i++) {
+			if (arguments[i] instanceof Object[] || arguments[i] == null) {
+				consigned[i] = (Object[]) arguments[i];
+			} else {
+				consigned[i] = new Object[]{arguments[i]};
+			}
+		}
+		return consigned;
 	}
 
 	public boolean isSingle() {

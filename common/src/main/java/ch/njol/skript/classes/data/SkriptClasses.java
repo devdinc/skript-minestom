@@ -18,6 +18,7 @@
  */
 package ch.njol.skript.classes.data;
 
+import ch.njol.skript.ScriptLoader;
 import ch.njol.skript.Skript;
 import ch.njol.skript.classes.ClassInfo;
 import ch.njol.skript.classes.Parser;
@@ -25,6 +26,7 @@ import ch.njol.skript.classes.Serializer;
 import ch.njol.skript.classes.YggdrasilSerializer;
 import ch.njol.skript.expressions.base.EventValueExpression;
 import ch.njol.skript.lang.ParseContext;
+import ch.njol.skript.lang.function.DynamicFunctionReference;
 import ch.njol.skript.lang.util.SimpleLiteral;
 import ch.njol.skript.localization.Noun;
 import ch.njol.skript.registrations.Classes;
@@ -34,8 +36,12 @@ import ch.njol.skript.util.Timeperiod;
 import ch.njol.skript.util.Timespan;
 import ch.njol.yggdrasil.Fields;
 import org.eclipse.jdt.annotation.Nullable;
+import org.skriptlang.skript.lang.script.Script;
+import org.skriptlang.skript.util.Executable;
 
+import java.io.File;
 import java.io.StreamCorruptedException;
+import java.nio.file.Path;
 import java.util.Iterator;
 
 /**
@@ -255,5 +261,97 @@ public class SkriptClasses {
 				"# now {_yesterday} represents the date 24 hours before now")
 			.since("1.4")
 			.serializer(new YggdrasilSerializer<>()));
+
+		Classes.registerClass(new ClassInfo<>(Script.class, "script")
+			.user("scripts?")
+			.name("Script")
+			.description("A script loaded by Skript.",
+				"Disabled scripts will report as being empty since their content has not been loaded.")
+			.usage("")
+			.examples("the current script")
+			.since("2.10")
+			.parser(new Parser<Script>() {
+
+				final Path path = Skript.getInstance().getScriptsFolder().getAbsoluteFile().toPath();
+
+				@Override
+				public boolean canParse(final ParseContext context) {
+					return switch (context) {
+						case PARSE, COMMAND -> true;
+						default -> false;
+					};
+				}
+
+				@Override
+				public @Nullable Script parse(final String name, final ParseContext context) {
+					return switch (context) {
+						case PARSE, COMMAND -> {
+							@Nullable File file = ScriptLoader.getScriptFromName(name);
+							if (file == null || !file.isFile())
+								yield null;
+							yield ScriptLoader.getScript(file);
+						}
+						default -> null;
+					};
+				}
+
+				@Override
+				public String toString(final Script script, final int flags) {
+					@Nullable File file = script.getConfig().getFile();
+					if (file == null)
+						return script.getConfig().getFileName();
+					return path.relativize(file.toPath().toAbsolutePath()).toString();
+				}
+
+				@Override
+				public String toVariableNameString(final Script script) {
+					return this.toString(script, 0);
+				}
+			}));
+
+		Classes.registerClass(new ClassInfo<>(Executable.class, "executable")
+			.user("executables?")
+			.name("Executable")
+			.description("Something that can be executed (run) and may accept arguments, e.g. a function.",
+				"This may also return a result.")
+			.examples("run {_function} with arguments 1 and true")
+			.since("2.10"));
+
+		Classes.registerClass(new ClassInfo<>(DynamicFunctionReference.class, "function")
+			.user("functions?")
+			.name("Function")
+			.description("A function loaded by Skript.",
+				"This can be executed (with arguments) and may return a result.")
+			.examples("run {_function} with arguments 1 and true",
+				"set {_result} to the result of {_function}")
+			.since("2.10")
+			.parser(new Parser<DynamicFunctionReference<?>>() {
+
+				@Override
+				public boolean canParse(final ParseContext context) {
+					return switch (context) {
+						case PARSE, COMMAND -> true;
+						default -> false;
+					};
+				}
+
+				@Override
+				public @Nullable DynamicFunctionReference<?> parse(final String name, final ParseContext context) {
+					return switch (context) {
+						case PARSE, COMMAND -> DynamicFunctionReference.parseFunction(name);
+						default -> null;
+					};
+				}
+
+				@Override
+				public String toString(DynamicFunctionReference<?> function, final int flags) {
+					return function.toString();
+				}
+
+				@Override
+				public String toVariableNameString(DynamicFunctionReference<?> function) {
+					return this.toString(function, 0);
+				}
+			}));
 	}
 }
